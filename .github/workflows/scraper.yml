@@ -1,0 +1,55 @@
+name: Hlídání eventů
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"  # každých 30 minut (GitHub může běh o pár minut zpozdit)
+  workflow_dispatch:      # tlačítko "Run workflow" pro ruční spuštění
+
+# workflow musí mít právo commitnout state/ zpátky do repozitáře
+permissions:
+  contents: write
+
+# dva běhy najednou by si přepisovaly stav
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalace závislostí
+        run: pip install -r requirements.txt
+
+      # stažený Chromium se ukládá do cache, další běhy pak nemusí stahovat ~150 MB
+      - name: Cache Playwright prohlížeče
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Instalace Chromia
+        run: python -m playwright install --with-deps chromium
+
+      - name: Spuštění scraperu
+        run: python main.py
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # uloží stav i při chybě jednoho webu, aby se ostatním neposílaly novinky znovu
+      - name: Uložení stavu
+        if: always()
+        run: |
+          [ -d state ] || exit 0  # scraper selhal dřív, než cokoli uložil
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git diff --cached --quiet || (git commit -m "Aktualizace stavu" && git push)
