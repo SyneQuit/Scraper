@@ -2,7 +2,7 @@ name: Hlídání eventů
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  #každých 30 minut (GitHub může běh o pár minut zpozdit)
+    - cron: "7/34 * * * *"  #každých 30 minut (GitHub může běh o pár minut zpozdit)
   workflow_dispatch:      # tlačítko "Run workflow" pro ruční spuštění
 
 # workflow musí mít právo commitnout state/ zpátky do repozitáře
